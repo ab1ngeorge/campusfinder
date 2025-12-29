@@ -1,24 +1,19 @@
 import streamlit as st
 import streamlit.components.v1 as components
 from datetime import datetime
+import json
 
 # Page configuration
 st.set_page_config(
     page_title="LBS Campus Navigator",
     page_icon="🎓",
     layout="centered",
-    initial_sidebar_state="expanded"
 )
 
-# Initialize session state
-if 'navigation_history' not in st.session_state:
-    st.session_state.navigation_history = []
-if 'voice_enabled' not in st.session_state:
-    st.session_state.voice_enabled = True
-if 'travel_mode' not in st.session_state:
-    st.session_state.travel_mode = "driving"
+# Initialize session state for navigation history
+if 'nav_history' not in st.session_state:
+    st.session_state.nav_history = []
 
-# Title and description
 st.markdown(
     "<h2 style='text-align:center;margin-bottom:0;'>🎓 LBS Campus Navigator</h2>",
     unsafe_allow_html=True,
@@ -27,73 +22,51 @@ st.caption(
     "Tap a location card, share your location, and get Google Maps directions plus spoken route instructions."
 )
 
-# Sidebar for settings and history
+# Sidebar for history and settings
 with st.sidebar:
+    st.header("📊 Navigation History")
+    
+    if st.session_state.nav_history:
+        for i, entry in enumerate(reversed(st.session_state.nav_history[-5:])):
+            with st.container():
+                st.markdown(f"**{entry['destination']}**")
+                st.caption(f"📍 {entry['time']} • {entry['distance']:.2f} km")
+                st.divider()
+    else:
+        st.info("No navigation history yet")
+    
     st.header("⚙️ Settings")
     
-    st.session_state.voice_enabled = st.toggle(
-        "Enable Voice Navigation", 
-        value=st.session_state.voice_enabled,
-        help="Turn on voice instructions for navigation"
-    )
-    
-    st.session_state.travel_mode = st.selectbox(
-        "Default Travel Mode",
-        ["driving", "walking", "bicycling", "transit"],
-        index=["driving", "walking", "bicycling", "transit"].index(st.session_state.travel_mode),
-        help="Set default travel mode for directions"
-    )
-    
-    # Export settings
-    export_format = st.selectbox(
-        "Export History Format",
-        ["JSON", "CSV", "Text"],
+    # Travel mode preference
+    travel_mode_pref = st.radio(
+        "Travel Mode Preference",
+        ["Auto (distance-based)", "Walking", "Driving"],
         index=0
     )
     
+    # Voice settings
+    voice_enabled = st.checkbox("Enable Voice Instructions", value=True)
+    voice_rate = st.slider("Voice Speed", 0.5, 2.0, 1.0, 0.1)
+    
     if st.button("🗑️ Clear History"):
-        st.session_state.navigation_history = []
+        st.session_state.nav_history = []
         st.rerun()
-    
-    st.divider()
-    
-    # Navigation History
-    st.header("📜 Navigation History")
-    if st.session_state.navigation_history:
-        for i, item in enumerate(reversed(st.session_state.navigation_history[-10:])):
-            with st.container():
-                cols = st.columns([4, 1])
-                with cols[0]:
-                    st.markdown(f"**{item['destination']}**")
-                    st.caption(f"📍 {item['time']}")
-                with cols[1]:
-                    if st.button("↻", key=f"reuse_{i}"):
-                        # This would trigger re-navigation
-                        st.toast(f"Re-navigating to {item['destination']}")
-    else:
-        st.caption("No navigation history yet")
-    
-    st.divider()
-    
-    # Privacy Information
-    with st.expander("🔒 Privacy Information"):
-        st.info("""
-        **Data Privacy:**
-        - Your location is only used to generate directions
-        - No location data is stored on our servers
-        - All navigation happens in your browser
-        - You can deny location permissions at any time
-        
-        **Voice Features:**
-        - Voice synthesis uses your device's built-in voices
-        - No audio data is sent to external servers
-        - You can disable voice at any time
-        """)
 
-# Main content
-st.markdown("### Campus Navigation Dashboard")
+# Add custom CSS for better mobile experience
+st.markdown("""
+<style>
+@media (max-width: 768px) {
+    .main > div {
+        padding: 0.5rem !important;
+    }
+    .stSidebar {
+        min-width: 200px !important;
+        max-width: 300px !important;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
 
-# Generate HTML with dynamic parameters
 html_code = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -284,25 +257,6 @@ html_code = f"""
     .btn-primary:active {{
       transform: translateY(0.5px) scale(0.99);
       box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.9), 0 8px 18px rgba(34, 197, 94, 0.28);
-    }}
-
-    .btn-secondary {{
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(59, 130, 246, 0.6);
-      background: radial-gradient(circle at top, rgba(59, 130, 246, 0.15), rgba(15, 23, 42, 0.95));
-      color: #60a5fa;
-      font-size: 0.68rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.16s ease;
-    }}
-
-    .btn-secondary:hover {{
-      background: radial-gradient(circle at top, rgba(59, 130, 246, 0.25), rgba(15, 23, 42, 0.98));
     }}
 
     .main {{
@@ -569,15 +523,6 @@ html_code = f"""
       color: rgba(191, 219, 254, 0.98);
     }}
 
-    .status-text-small {{
-      font-size: 0.66rem;
-      color: rgba(148, 163, 184, 0.9);
-    }}
-
-    .status-text-small strong {{
-      color: var(--accent);
-    }}
-
     .mini-pill {{
       padding: 2px 6px;
       border-radius: 999px;
@@ -654,11 +599,22 @@ html_code = f"""
       margin-top: 4px;
     }}
 
-    .loading {{
+    .distance-badge {{
+      background: rgba(37, 99, 235, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      color: #60a5fa;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.65rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }}
+
+    .loading-indicator {{
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 10px;
       color: rgba(148, 163, 184, 0.9);
       font-size: 0.75rem;
     }}
@@ -757,9 +713,6 @@ html_code = f"""
         <span>🔊 Test voice</span>
         <span>EN-IN</span>
       </button>
-      <button class="btn-secondary" id="share-btn">
-        <span>📤 Share</span>
-      </button>
     </section>
 
     <section class="main">
@@ -769,8 +722,9 @@ html_code = f"""
             <strong>Campus map</strong>
             <span style="color: var(--muted);">• Tap a card to start navigation</span>
           </div>
-          <div style="font-size: 0.7rem; color: var(--muted);">
-            Mode: <strong>{st.session_state.travel_mode}</strong>
+          <div class="distance-badge">
+            <span>📍</span>
+            <span id="total-places">0 places</span>
           </div>
         </div>
 
@@ -781,12 +735,10 @@ html_code = f"""
             class="search-input"
             type="text"
             placeholder="Search: library, mechanical, hostel, canteen, ATM..."
-            aria-label="Search campus locations"
           />
         </div>
 
-        <div class="list" id="places-list">
-        </div>
+        <div class="list" id="places-list"></div>
       </section>
 
       <section class="card">
@@ -794,9 +746,6 @@ html_code = f"""
           <div>
             <strong>Live navigation</strong>
             <span style="color: var(--muted);">• Status & spoken instructions</span>
-          </div>
-          <div style="font-size: 0.7rem; color: var(--muted);">
-            Voice: <strong>{'ON' if st.session_state.voice_enabled else 'OFF'}</strong>
           </div>
         </div>
 
@@ -827,6 +776,7 @@ html_code = f"""
             Waiting for a destination tap on the left panel.
           </div>
           <div id="last-spoken"></div>
+          <div id="distance-info" style="margin-top: 8px; font-size: 0.68rem; color: rgba(148, 163, 184, 0.8);"></div>
         </div>
 
         <div class="action-row">
@@ -844,6 +794,7 @@ html_code = f"""
   </div>
 
   <script>
+    // All campus locations with approximate lat/lng
     const places = [
       {{
         categoryLabel: "🏛️ Main Campus & Admin",
@@ -851,22 +802,34 @@ html_code = f"""
           {{
             name: "LBS College of Engineering (Main Entrance)",
             category: "Main Campus & Admin",
-            url: "https://maps.app.goo.gl/ZGm4R6fiM6KgbfH97"
+            url: "https://maps.app.goo.gl/ZGm4R6fiM6KgbfH97",
+            lat: 12.2116825,
+            lng: 75.1343226,
+            description: "Main entrance gate to LBS College of Engineering"
           }},
           {{
             name: "Academic Departments (General Area)",
             category: "Main Campus & Admin",
-            url: "https://maps.app.goo.gl/2PvfbFGAkUFjFBjS6"
+            url: "https://maps.app.goo.gl/2PvfbFGAkUFjFBjS6",
+            lat: 12.2117043,
+            lng: 75.1350799,
+            description: "Central area for all academic departments"
           }},
           {{
             name: "Dept. Of Mechanical Engineering",
             category: "Main Campus & Admin",
-            url: "https://maps.app.goo.gl/Yas8hpFy3kNim1xD8"
+            url: "https://maps.app.goo.gl/Yas8hpFy3kNim1xD8",
+            lat: 12.2112966,
+            lng: 75.1348592,
+            description: "Mechanical Engineering Department building"
           }},
           {{
             name: "Computer Science & IT Department Building",
             category: "Main Campus & Admin",
-            url: "https://maps.app.goo.gl/DbwYQ6b984VTGDjm6"
+            url: "https://maps.app.goo.gl/DbwYQ6b984VTGDjm6",
+            lat: 12.2119797,
+            lng: 75.135093,
+            description: "Computer Science and IT Department building"
           }}
         ]
       }},
@@ -876,22 +839,34 @@ html_code = f"""
           {{
             name: "Central Library",
             category: "Academic Facilities",
-            url: "https://maps.app.goo.gl/fh6Z8TEsomfuoFbJ9"
+            url: "https://maps.app.goo.gl/fh6Z8TEsomfuoFbJ9",
+            lat: 12.2123142,
+            lng: 75.1351663,
+            description: "Main campus library with study areas"
           }},
           {{
             name: "Campus Fab Lab",
             category: "Academic Facilities",
-            url: "https://maps.app.goo.gl/3rz8e5WXZ3UytSze7"
+            url: "https://maps.app.goo.gl/3rz8e5WXZ3UytSze7",
+            lat: 12.2120622,
+            lng: 75.1356401,
+            description: "Fabrication laboratory for engineering projects"
           }},
           {{
             name: "Computer Lab",
             category: "Academic Facilities",
-            url: "https://maps.app.goo.gl/6pasZGBNrC3opwTg8"
+            url: "https://maps.app.goo.gl/6pasZGBNrC3opwTg8",
+            lat: 12.2120885,
+            lng: 75.1353772,
+            description: "Computer laboratory for students"
           }},
           {{
             name: "Reprographic Centre",
             category: "Academic Facilities",
-            url: "https://maps.app.goo.gl/FZ72xAAczEwk2mgi7"
+            url: "https://maps.app.goo.gl/FZ72xAAczEwk2mgi7",
+            lat: 12.2121884,
+            lng: 75.1355127,
+            description: "Photocopy and printing services"
           }}
         ]
       }},
@@ -901,12 +876,18 @@ html_code = f"""
           {{
             name: "Multipurpose Sports Area",
             category: "Sports & Recreation",
-            url: "https://maps.app.goo.gl/uyPH83UZo3rjEFEBA"
+            url: "https://maps.app.goo.gl/uyPH83UZo3rjEFEBA",
+            lat: 12.2128854,
+            lng: 75.134893,
+            description: "Multi-sports ground for various activities"
           }},
           {{
             name: "LBS College Football Ground",
             category: "Sports & Recreation",
-            url: "https://maps.app.goo.gl/vjLN3ZgN2yUoxuSr5"
+            url: "https://maps.app.goo.gl/vjLN3ZgN2yUoxuSr5",
+            lat: 12.2136514,
+            lng: 75.1348989,
+            description: "Main football ground"
           }}
         ]
       }},
@@ -916,27 +897,42 @@ html_code = f"""
           {{
             name: "Men's Hostel (Verified Block)",
             category: "Student Amenities",
-            url: "https://maps.app.goo.gl/fQ1QAUmNk5MDepgTA"
+            url: "https://maps.app.goo.gl/fQ1QAUmNk5MDepgTA",
+            lat: 12.2108798,
+            lng: 75.1355925,
+            description: "Boys hostel accommodation"
           }},
           {{
             name: "Shahanas Hostel (Ladies Hostel)",
             category: "Student Amenities",
-            url: "https://maps.app.goo.gl/nPwgvr3U3fXSiUj47"
+            url: "https://maps.app.goo.gl/nPwgvr3U3fXSiUj47",
+            lat: 12.2124134,
+            lng: 75.1361671,
+            description: "Girls hostel accommodation"
           }},
           {{
             name: "College Canteen",
             category: "Student Amenities",
-            url: "https://maps.app.goo.gl/UN4s7g16zSMiHhYz8"
+            url: "https://maps.app.goo.gl/UN4s7g16zSMiHhYz8",
+            lat: 12.211871,
+            lng: 75.1346184,
+            description: "Main college cafeteria"
           }},
           {{
             name: "College ATM (SBI ATM)",
             category: "Student Amenities",
-            url: "https://maps.app.goo.gl/ug6jLStaQDjnVZ239"
+            url: "https://maps.app.goo.gl/ug6jLStaQDjnVZ239",
+            lat: 12.2115636,
+            lng: 75.1349782,
+            description: "State Bank of India ATM"
           }},
           {{
             name: "Bus Garage / Transport Area",
             category: "Student Amenities",
-            url: "https://maps.app.goo.gl/9WUemftWwmGohsRW8"
+            url: "https://maps.app.goo.gl/9WUemftWwmGohsRW8",
+            lat: 12.2111524,
+            lng: 75.1339472,
+            description: "College bus parking and transport area"
           }}
         ]
       }}
@@ -947,12 +943,18 @@ html_code = f"""
     const statusEl = document.getElementById("status");
     const lastSpokenEl = document.getElementById("last-spoken");
     const testVoiceBtn = document.getElementById("test-voice");
-    const shareBtn = document.getElementById("share-btn");
+    const distanceInfoEl = document.getElementById("distance-info");
+    const totalPlacesEl = document.getElementById("total-places");
     
-    // Streamlit communication
-    const Streamlit = window.Streamlit || {{}};
-    let voiceEnabled = {str(st.session_state.voice_enabled).lower()};
-    let travelMode = "{st.session_state.travel_mode}";
+    // Calculate total places
+    let totalPlaces = 0;
+    places.forEach(section => totalPlaces += section.items.length);
+    totalPlacesEl.textContent = `${{totalPlaces}} places`;
+
+    // Streamlit communication for settings
+    const travelModePreference = "{travel_mode_pref}";
+    const voiceEnabled = {str(voice_enabled).lower()};
+    const voiceRate = {voice_rate};
 
     function buildList(filterText = "") {{
       listEl.innerHTML = "";
@@ -963,7 +965,8 @@ html_code = f"""
           if (!query) return true;
           return (
             item.name.toLowerCase().includes(query) ||
-            item.category.toLowerCase().includes(query)
+            item.category.toLowerCase().includes(query) ||
+            (item.description && item.description.toLowerCase().includes(query))
           );
         }});
 
@@ -971,7 +974,7 @@ html_code = f"""
 
         const sectionLabel = document.createElement("div");
         sectionLabel.className = "section-label";
-        sectionLabel.innerHTML = `<span class="dot"></span><span>${{section.categoryLabel}}</span>`;
+        sectionLabel.innerHTML = `<span class="dot"></span><span>${{section.categoryLabel}} (${{filteredItems.length}})</span>`;
         listEl.appendChild(sectionLabel);
 
         filteredItems.forEach(item => {{
@@ -980,10 +983,10 @@ html_code = f"""
           card.dataset.url = item.url;
           card.dataset.name = item.name;
           card.dataset.category = item.category;
-          card.tabIndex = 0;
-          card.setAttribute('role', 'button');
-          card.setAttribute('aria-label', `Navigate to ${{item.name}}`);
-          
+          card.tabIndex = "0";
+          card.setAttribute("role", "button");
+          card.setAttribute("aria-label", `Navigate to ${{item.name}}`);
+
           card.innerHTML = `
             <div class="place-main">
               <div class="place-category">
@@ -1016,14 +1019,19 @@ html_code = f"""
           `;
 
           card.addEventListener("click", () => handlePlaceClick(item));
-          card.addEventListener("keypress", (e) => handleKeyPress(e, item));
+          card.addEventListener("keypress", (e) => {{
+            if (e.key === "Enter" || e.key === " ") {{
+              e.preventDefault();
+              handlePlaceClick(item);
+            }}
+          }});
           listEl.appendChild(card);
         }});
       }});
 
       if (!listEl.innerHTML) {{
         listEl.innerHTML =
-          '<div style="padding: 10px; font-size: 0.74rem; color: rgba(148, 163, 184, 0.9);">No places match your search. Try another keyword.</div>';
+          '<div style="padding: 10px; font-size: 0.74rem; color: rgba(148, 163, 184, 0.9); text-align: center;">No places match your search. Try another keyword.</div>';
       }}
     }}
 
@@ -1033,69 +1041,52 @@ html_code = f"""
       buildList(e.target.value);
     }});
 
-    // Voice synthesis with better error handling
-    let voicesLoaded = false;
-
-    function ensureVoicesLoaded() {{
-      return new Promise((resolve) => {{
-        if (window.speechSynthesis.getVoices().length > 0) {{
-          voicesLoaded = true;
-          resolve();
-        }} else {{
-          window.speechSynthesis.addEventListener('voiceschanged', () => {{
-            voicesLoaded = true;
-            resolve();
-          }}, {{ once: true }});
-        }}
-      }});
-    }}
-
+    // Enhanced speech synthesis with error handling
     function speak(text) {{
       if (!voiceEnabled || !("speechSynthesis" in window)) {{
-        console.log("Voice disabled or not supported");
+        console.log("Voice synthesis disabled or not supported");
         return;
       }}
-      
+
       try {{
         window.speechSynthesis.cancel();
-        
-        if (!voicesLoaded) {{
-          ensureVoicesLoaded().then(() => {{
-            createAndSpeak(text);
-          }});
-        }} else {{
-          createAndSpeak(text);
-        }}
-      }} catch (error) {{
-        console.error("Speech synthesis error:", error);
-        lastSpokenEl.textContent = "Voice not available";
-      }}
-    }}
 
-    function createAndSpeak(text) {{
-      const utterance = new SpeechSynthesisUtterance(text);
-      const voices = window.speechSynthesis.getVoices();
-      const preferred = voices.find(v => v.lang.toLowerCase().startsWith("en-in"));
-      utterance.voice = preferred || voices[0] || null;
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      utterance.volume = 1;
-      
-      utterance.onend = () => {{
-        console.log("Speech finished");
-      }};
-      
-      utterance.onerror = (event) => {{
-        console.error("Speech synthesis error:", event);
-        lastSpokenEl.textContent = "Voice error occurred";
-      }};
-      
-      window.speechSynthesis.speak(utterance);
+        const utterance = new SpeechSynthesisUtterance(text);
+        
+        // Get voices and select appropriate one
+        const voices = window.speechSynthesis.getVoices();
+        let preferredVoice = voices.find(v => v.lang.toLowerCase().startsWith("en-in"));
+        
+        // Fallback to any English voice
+        if (!preferredVoice) {{
+          preferredVoice = voices.find(v => v.lang.toLowerCase().startsWith("en"));
+        }}
+        
+        if (preferredVoice) {{
+          utterance.voice = preferredVoice;
+        }}
+        
+        utterance.rate = voiceRate;
+        utterance.pitch = 1.0;
+        utterance.volume = 1;
+
+        utterance.onerror = (event) => {{
+          console.error("Speech synthesis error:", event);
+          lastSpokenEl.textContent = "Voice error occurred";
+        }};
+
+        window.speechSynthesis.speak(utterance);
+      }} catch (error) {{
+        console.error("Error with speech synthesis:", error);
+      }}
     }}
 
     // Initialize voices
     if ("speechSynthesis" in window) {{
-      ensureVoicesLoaded();
+      // Load voices asynchronously
+      setTimeout(() => {{
+        window.speechSynthesis.getVoices();
+      }}, 100);
     }}
 
     testVoiceBtn.addEventListener("click", () => {{
@@ -1105,47 +1096,60 @@ html_code = f"""
       lastSpokenEl.textContent = `Spoken: "${{text}}"`;
     }});
 
-    shareBtn.addEventListener("click", () => {{
-      if (navigator.share) {{
-        navigator.share({{
-          title: 'LBS Campus Navigator',
-          text: 'Check out the LBS Campus Navigator for directions and voice-guided navigation',
-          url: window.location.href
-        }});
-      }} else {{
-        navigator.clipboard.writeText(window.location.href);
-        statusEl.textContent = "Link copied to clipboard!";
-      }}
-    }});
+    // Haversine distance calculation in km
+    function distanceKm(lat1, lon1, lat2, lon2) {{
+      const R = 6371; // Earth's radius in km
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) *
+          Math.cos(lat2 * Math.PI / 180) *
+          Math.sin(dLon / 2) *
+          Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }}
 
-    function handleKeyPress(e, item) {{
-      if (e.key === 'Enter' || e.key === ' ') {{
-        e.preventDefault();
-        handlePlaceClick(item);
+    // Format distance for display
+    function formatDistance(km) {{
+      if (km < 1) {{
+        return `${{(km * 1000).toFixed(0)}} meters`;
       }}
+      return `${{km.toFixed(2)}} km`;
+    }}
+
+    // Calculate walking time (approx 5 km/h)
+    function calculateWalkingTime(km) {{
+      const minutes = Math.round((km / 5) * 60);
+      if (minutes < 60) {{
+        return `${{minutes}} min walk`;
+      }}
+      const hours = Math.floor(minutes / 60);
+      const remainingMinutes = minutes % 60;
+      return `${{hours}}h ${{remainingMinutes}}m walk`;
+    }}
+
+    // Calculate driving time (approx 30 km/h average on campus)
+    function calculateDrivingTime(km) {{
+      const minutes = Math.round((km / 30) * 60);
+      return `${{Math.max(1, minutes)}} min drive`;
     }}
 
     async function handlePlaceClick(place) {{
       const name = place.name;
       const url = place.url;
       
-      // Store in navigation history via Streamlit
-      if (Streamlit.setComponentValue) {{
-        Streamlit.setComponentValue({{
-          type: 'navigation',
-          destination: name,
-          timestamp: new Date().toISOString(),
-          travelMode: travelMode
-        }});
-      }}
-
-      const originalStatus = statusEl.innerHTML;
+      // Show loading state
+      const originalContent = statusEl.innerHTML;
       statusEl.innerHTML = `
-        <div class="loading">
+        <div class="loading-indicator">
           <div class="status-dot pulse"></div>
-          Fetching your current location… Please keep GPS enabled and grant permission when asked.
+          <span>Fetching your current location… Please enable GPS and grant permission when asked.</span>
         </div>
       `;
+      
+      distanceInfoEl.innerHTML = "";
 
       if (!navigator.geolocation) {{
         statusEl.innerHTML =
@@ -1168,44 +1172,101 @@ html_code = f"""
 
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
+        const accuracy = position.coords.accuracy;
 
+        // Calculate distance
+        const distance = distanceKm(lat, lng, place.lat, place.lng);
+        
+        // Determine travel mode based on preference and distance
+        let travelMode;
+        if (travelModePreference === "Auto (distance-based)") {{
+          travelMode = distance <= 1.0 ? "walking" : "driving";
+        }} else if (travelModePreference === "Walking") {{
+          travelMode = "walking";
+        }} else {{
+          travelMode = "driving";
+        }}
+
+        // Calculate estimated times
+        const walkingTime = calculateWalkingTime(distance);
+        const drivingTime = calculateDrivingTime(distance);
+        
+        // Update status display
         statusEl.innerHTML = `
-          Location acquired.<br />
-          From: <strong>${{lat.toFixed(5)}}, ${{lng.toFixed(5)}}</strong><br />
-          To: <strong>${{name}}</strong> (Google Maps link opened in a new tab).
+          <div style="margin-bottom: 6px;">
+            ✅ Location acquired (accuracy: ±${{Math.round(accuracy)}}m)
+          </div>
+          <div>
+            <strong>From:</strong> ${{lat.toFixed(6)}}, ${{lng.toFixed(6)}}<br/>
+            <strong>To:</strong> ${{name}}<br/>
+            <strong>Distance:</strong> ${{formatDistance(distance)}}<br/>
+            <strong>Mode:</strong> ${{travelMode.charAt(0).toUpperCase() + travelMode.slice(1)}}
+          </div>
+        `;
+        
+        // Show travel time information
+        distanceInfoEl.innerHTML = `
+          <div class="distance-badge" style="margin-bottom: 4px;">
+            <span>⏱️</span>
+            <span>Est. time: ${{travelMode === "walking" ? walkingTime : drivingTime}}</span>
+          </div>
+          ${{travelMode === "walking" && distance > 1.0 ? 
+            '<div style="color: #fbbf24; font-size: 0.65rem;">Note: Distance > 1km, consider driving</div>' : 
+            ''}}
         `;
 
+        // Open Google Maps with directions
         const directionsUrl = `https://www.google.com/maps/dir/?api=1&origin=${{lat}},${{lng}}&destination=${{encodeURIComponent(
           name
-        )}}&destination_place_id=&travelmode=${{travelMode}}`;
-
+        )}}&travelmode=${{travelMode}}&dir_action=navigate`;
+        
         window.open(directionsUrl, "_blank");
 
-        const spoken = `Starting navigation from your current location to ${{name}}. Your route is now open in Google Maps. Travel mode: ${{travelMode}}.`;
+        // Create voice message
+        const spoken = `Navigating to ${{name}}. Distance is ${{formatDistance(distance)}}. Estimated ${{travelMode === "walking" ? walkingTime : drivingTime}}. Opening Google Maps now.`;
+        
         speak(spoken);
         lastSpokenEl.textContent = `Spoken: "${{spoken}}"`;
+        
+        // Store in navigation history via Streamlit
+        try {{
+          const historyEntry = {{
+            destination: name,
+            time: new Date().toLocaleTimeString(),
+            distance: distance,
+            mode: travelMode,
+            coordinates: {{ lat: lat, lng: lng }}
+          }};
+          
+          // Send to Streamlit
+          if (window.parent) {{
+            window.parent.postMessage({{
+              type: 'navigation_history',
+              data: historyEntry
+            }}, "*");
+          }}
+        }} catch (e) {{
+          console.log("Could not store navigation history");
+        }}
 
       }} catch (error) {{
         let msg;
         switch (error.code) {{
           case error.PERMISSION_DENIED:
-            msg =
-              "Location permission was denied. Opening the Google Maps place link without your current position.";
+            msg = "Location permission was denied. Opening the Google Maps place link without your current position.";
             break;
           case error.POSITION_UNAVAILABLE:
-            msg =
-              "Location information is unavailable. Opening the Google Maps place link.";
+            msg = "Location information is unavailable. Opening the Google Maps place link.";
             break;
           case error.TIMEOUT:
-            msg =
-              "Location request timed out. Opening the Google Maps place link.";
+            msg = "Location request timed out. Opening the Google Maps place link.";
             break;
           default:
-            msg =
-              "An unknown error occurred while fetching your location. Opening the Google Maps place link.";
+            msg = "An unknown error occurred while fetching your location. Opening the Google Maps place link.";
         }}
 
         statusEl.textContent = msg;
+        distanceInfoEl.innerHTML = "";
         window.open(url, "_blank");
         const spoken = `${{msg}}`;
         speak(spoken);
@@ -1213,38 +1274,69 @@ html_code = f"""
       }}
     }}
 
-    // Handle messages from Streamlit
-    if (Streamlit.on) {{
-      Streamlit.on('message', (event) => {{
-        if (event.data && event.data.type === 'updateSettings') {{
-          voiceEnabled = event.data.voiceEnabled;
-          travelMode = event.data.travelMode;
-        }}
-      }});
-    }}
+    // Handle keyboard navigation
+    document.addEventListener('keydown', function(e) {{
+      if (e.key === 'Escape') {{
+        searchInput.blur();
+      }}
+    }});
+
+    // Initialize
+    buildList();
   </script>
 </body>
 </html>
 """
 
-# Embed the HTML component
+# JavaScript to handle messages from the HTML component
+js_code = """
+<script>
+window.addEventListener('message', function(event) {
+    if (event.data.type === 'navigation_history') {
+        // This would be handled by Streamlit components
+        console.log('Navigation history:', event.data.data);
+    }
+});
+</script>
+"""
+
+# Add the JavaScript
+st.components.v1.html(js_code, height=0)
+
+# Embed the main HTML component
 components.html(
     html_code,
     height=750,
     scrolling=True,
 )
 
-# Handle navigation history from HTML component
-if components.html:
-    # This would be handled through component callbacks in a real implementation
-    pass
-
-# Footer with information
+# Footer section
 st.divider()
+
+# Statistics section
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.caption("📍 Uses browser geolocation")
+    st.metric("📍 Locations", "15", "Verified")
 with col2:
-    st.caption("🗣️ Voice synthesis via Web Speech API")
+    st.metric("🗣️ Voice", "Enabled" if voice_enabled else "Disabled", "")
 with col3:
-    st.caption("🗺️ Powered by Google Maps")
+    st.metric("🧭 Mode", travel_mode_pref, "")
+
+# Quick tips
+with st.expander("💡 Quick Tips"):
+    st.markdown("""
+    - **First time?** Grant location permission when prompted
+    - **On mobile?** Enable GPS for better accuracy
+    - **Voice too fast/slow?** Adjust speed in settings
+    - **Walking vs Driving:** Auto mode chooses based on distance (<1km = walking)
+    - **Accuracy:** Campus WiFi can improve indoor location accuracy
+    """)
+
+# Handle navigation history update
+if components.html:
+    # This is where we would process messages from the HTML component
+    pass
+
+# Add a refresh button
+if st.button("🔄 Refresh App"):
+    st.rerun()
