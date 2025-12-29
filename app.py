@@ -1,12 +1,24 @@
 import streamlit as st
 import streamlit.components.v1 as components
+from datetime import datetime
 
+# Page configuration
 st.set_page_config(
     page_title="LBS Campus Navigator",
     page_icon="🎓",
     layout="centered",
+    initial_sidebar_state="expanded"
 )
 
+# Initialize session state
+if 'navigation_history' not in st.session_state:
+    st.session_state.navigation_history = []
+if 'voice_enabled' not in st.session_state:
+    st.session_state.voice_enabled = True
+if 'travel_mode' not in st.session_state:
+    st.session_state.travel_mode = "driving"
+
+# Title and description
 st.markdown(
     "<h2 style='text-align:center;margin-bottom:0;'>🎓 LBS Campus Navigator</h2>",
     unsafe_allow_html=True,
@@ -15,14 +27,81 @@ st.caption(
     "Tap a location card, share your location, and get Google Maps directions plus spoken route instructions."
 )
 
-html_code = r"""
+# Sidebar for settings and history
+with st.sidebar:
+    st.header("⚙️ Settings")
+    
+    st.session_state.voice_enabled = st.toggle(
+        "Enable Voice Navigation", 
+        value=st.session_state.voice_enabled,
+        help="Turn on voice instructions for navigation"
+    )
+    
+    st.session_state.travel_mode = st.selectbox(
+        "Default Travel Mode",
+        ["driving", "walking", "bicycling", "transit"],
+        index=["driving", "walking", "bicycling", "transit"].index(st.session_state.travel_mode),
+        help="Set default travel mode for directions"
+    )
+    
+    # Export settings
+    export_format = st.selectbox(
+        "Export History Format",
+        ["JSON", "CSV", "Text"],
+        index=0
+    )
+    
+    if st.button("🗑️ Clear History"):
+        st.session_state.navigation_history = []
+        st.rerun()
+    
+    st.divider()
+    
+    # Navigation History
+    st.header("📜 Navigation History")
+    if st.session_state.navigation_history:
+        for i, item in enumerate(reversed(st.session_state.navigation_history[-10:])):
+            with st.container():
+                cols = st.columns([4, 1])
+                with cols[0]:
+                    st.markdown(f"**{item['destination']}**")
+                    st.caption(f"📍 {item['time']}")
+                with cols[1]:
+                    if st.button("↻", key=f"reuse_{i}"):
+                        # This would trigger re-navigation
+                        st.toast(f"Re-navigating to {item['destination']}")
+    else:
+        st.caption("No navigation history yet")
+    
+    st.divider()
+    
+    # Privacy Information
+    with st.expander("🔒 Privacy Information"):
+        st.info("""
+        **Data Privacy:**
+        - Your location is only used to generate directions
+        - No location data is stored on our servers
+        - All navigation happens in your browser
+        - You can deny location permissions at any time
+        
+        **Voice Features:**
+        - Voice synthesis uses your device's built-in voices
+        - No audio data is sent to external servers
+        - You can disable voice at any time
+        """)
+
+# Main content
+st.markdown("### Campus Navigation Dashboard")
+
+# Generate HTML with dynamic parameters
+html_code = f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    :root {
+    :root {{
       --bg: #0f172a;
       --card-bg: #020617;
       --accent: #22c55e;
@@ -33,26 +112,26 @@ html_code = r"""
       --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.65);
       --radius-xl: 18px;
       --radius-full: 999px;
-    }
+    }}
 
-    * {
+    * {{
       box-sizing: border-box;
       margin: 0;
       padding: 0;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
         "Segoe UI", sans-serif;
-    }
+    }}
 
-    body {
+    body {{
       min-height: 100vh;
       background: radial-gradient(circle at top, #1e293b, #020617 55%);
       color: var(--text);
       display: flex;
       justify-content: center;
       padding: 12px;
-    }
+    }}
 
-    .app-shell {
+    .app-shell {{
       width: 100%;
       max-width: 960px;
       background: linear-gradient(145deg, #020617, #020617, #020617);
@@ -63,9 +142,9 @@ html_code = r"""
       display: flex;
       flex-direction: column;
       gap: 12px;
-    }
+    }}
 
-    header {
+    header {{
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -74,24 +153,24 @@ html_code = r"""
       border-radius: 24px;
       background: radial-gradient(circle at top left, #1d283a, #020617);
       border: 1px solid rgba(148, 163, 184, 0.16);
-    }
+    }}
 
-    .title {
+    .title {{
       display: flex;
       flex-direction: column;
       gap: 3px;
-    }
+    }}
 
-    .title-main {
+    .title-main {{
       font-size: 1.1rem;
       font-weight: 650;
       letter-spacing: 0.03em;
       display: flex;
       align-items: center;
       gap: 6px;
-    }
+    }}
 
-    .title-main span.badge {
+    .title-main span.badge {{
       font-size: 0.55rem;
       padding: 2px 7px;
       border-radius: 999px;
@@ -99,14 +178,14 @@ html_code = r"""
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: var(--muted);
-    }
+    }}
 
-    .title-sub {
+    .title-sub {{
       font-size: 0.7rem;
       color: var(--muted);
-    }
+    }}
 
-    .status-pill {
+    .status-pill {{
       display: inline-flex;
       align-items: center;
       gap: 5px;
@@ -117,45 +196,45 @@ html_code = r"""
       font-size: 0.7rem;
       color: var(--muted);
       white-space: nowrap;
-    }
+    }}
 
-    .status-dot {
+    .status-dot {{
       width: 8px;
       height: 8px;
       border-radius: 999px;
       background: radial-gradient(circle at center, #4ade80, #22c55e);
       box-shadow: 0 0 12px rgba(34, 197, 94, 0.85);
-    }
+    }}
 
-    .status-text strong {
+    .status-text strong {{
       color: var(--accent);
       font-weight: 600;
-    }
+    }}
 
-    .status-divider {
+    .status-divider {{
       width: 1px;
       height: 12px;
       background: linear-gradient(to bottom, transparent, #334155, transparent);
-    }
+    }}
 
-    .status-chip {
+    .status-chip {{
       padding: 2px 7px;
       border-radius: 999px;
       border: 1px solid rgba(148, 163, 184, 0.4);
       font-size: 0.6rem;
       text-transform: uppercase;
       letter-spacing: 0.09em;
-    }
+    }}
 
-    .controls-row {
+    .controls-row {{
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
       align-items: center;
       padding: 8px 12px 4px;
-    }
+    }}
 
-    .pill {
+    .pill {{
       display: inline-flex;
       align-items: center;
       gap: 6px;
@@ -165,21 +244,21 @@ html_code = r"""
       border: 1px solid rgba(148, 163, 184, 0.3);
       font-size: 0.7rem;
       color: var(--muted);
-    }
+    }}
 
-    .pill-dot {
+    .pill-dot {{
       width: 8px;
       height: 8px;
       border-radius: 999px;
       background: var(--accent);
-    }
+    }}
 
-    .pill strong {
+    .pill strong {{
       color: var(--text);
       font-weight: 600;
-    }
+    }}
 
-    .btn-primary {
+    .btn-primary {{
       margin-left: auto;
       display: inline-flex;
       align-items: center;
@@ -194,26 +273,45 @@ html_code = r"""
       cursor: pointer;
       transition: background 0.18s ease, transform 0.08s ease, box-shadow 0.18s ease;
       box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.9), 0 10px 25px rgba(34, 197, 94, 0.35);
-    }
+    }}
 
-    .btn-primary:hover {
+    .btn-primary:hover {{
       background: radial-gradient(circle at top, rgba(34, 197, 94, 0.26), rgba(15, 23, 42, 0.98));
       transform: translateY(-0.5px);
       box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.95), 0 14px 28px rgba(34, 197, 94, 0.48);
-    }
+    }}
 
-    .btn-primary:active {
+    .btn-primary:active {{
       transform: translateY(0.5px) scale(0.99);
       box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.9), 0 8px 18px rgba(34, 197, 94, 0.28);
-    }
+    }}
 
-    .main {
+    .btn-secondary {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(59, 130, 246, 0.6);
+      background: radial-gradient(circle at top, rgba(59, 130, 246, 0.15), rgba(15, 23, 42, 0.95));
+      color: #60a5fa;
+      font-size: 0.68rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.16s ease;
+    }}
+
+    .btn-secondary:hover {{
+      background: radial-gradient(circle at top, rgba(59, 130, 246, 0.25), rgba(15, 23, 42, 0.98));
+    }}
+
+    .main {{
       display: grid;
       grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
       gap: 12px;
-    }
+    }}
 
-    .card {
+    .card {{
       background: radial-gradient(circle at top left, #0b1220, #020617);
       border-radius: var(--radius-xl);
       border: 1px solid rgba(148, 163, 184, 0.15);
@@ -222,27 +320,27 @@ html_code = r"""
       display: flex;
       flex-direction: column;
       gap: 10px;
-    }
+    }}
 
-    .card-header {
+    .card-header {{
       display: flex;
       justify-content: space-between;
       align-items: center;
       font-size: 0.8rem;
       color: var(--muted);
-    }
+    }}
 
-    .card-header strong {
+    .card-header strong {{
       color: var(--text);
       font-size: 0.8rem;
-    }
+    }}
 
-    .search-box {
+    .search-box {{
       position: relative;
       margin-top: 3px;
-    }
+    }}
 
-    .search-input {
+    .search-input {{
       width: 100%;
       padding: 7px 26px;
       border-radius: 999px;
@@ -251,43 +349,43 @@ html_code = r"""
       color: var(--text);
       font-size: 0.75rem;
       outline: none;
-    }
+    }}
 
-    .search-input::placeholder {
+    .search-input::placeholder {{
       color: rgba(148, 163, 184, 0.8);
-    }
+    }}
 
-    .search-icon {
+    .search-icon {{
       position: absolute;
       left: 9px;
       top: 50%;
       transform: translateY(-50%);
       font-size: 0.72rem;
       color: rgba(148, 163, 184, 0.9);
-    }
+    }}
 
-    .list {
+    .list {{
       max-height: 360px;
       overflow-y: auto;
       padding-right: 4px;
       scrollbar-width: thin;
       scrollbar-color: #4b5563 transparent;
-    }
+    }}
 
-    .list::-webkit-scrollbar {
+    .list::-webkit-scrollbar {{
       width: 5px;
-    }
+    }}
 
-    .list::-webkit-scrollbar-track {
+    .list::-webkit-scrollbar-track {{
       background: transparent;
-    }
+    }}
 
-    .list::-webkit-scrollbar-thumb {
+    .list::-webkit-scrollbar-thumb {{
       background: #4b5563;
       border-radius: 999px;
-    }
+    }}
 
-    .section-label {
+    .section-label {{
       margin-top: 4px;
       margin-bottom: 4px;
       font-size: 0.7rem;
@@ -297,16 +395,16 @@ html_code = r"""
       display: flex;
       align-items: center;
       gap: 6px;
-    }
+    }}
 
-    .section-label span.dot {
+    .section-label span.dot {{
       width: 5px;
       height: 5px;
       border-radius: 999px;
       background: rgba(148, 163, 184, 0.8);
-    }
+    }}
 
-    .place-card {
+    .place-card {{
       border-radius: 14px;
       border: 1px solid rgba(30, 64, 175, 0.5);
       background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.9), #020617 60%);
@@ -317,27 +415,27 @@ html_code = r"""
       justify-content: space-between;
       gap: 8px;
       transition: border-color 0.16s ease, transform 0.06s ease, box-shadow 0.16s ease, background 0.16s ease;
-    }
+    }}
 
-    .place-card:hover {
+    .place-card:hover {{
       border-color: rgba(59, 130, 246, 0.85);
       box-shadow: 0 10px 26px rgba(15, 23, 42, 0.85);
       transform: translateY(-0.5px);
       background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.95), #020617 70%);
-    }
+    }}
 
-    .place-card:active {
+    .place-card:active {{
       transform: translateY(0.5px) scale(0.995);
       box-shadow: 0 8px 18px rgba(15, 23, 42, 0.7);
-    }
+    }}
 
-    .place-main {
+    .place-main {{
       display: flex;
       flex-direction: column;
       gap: 2px;
-    }
+    }}
 
-    .place-category {
+    .place-category {{
       font-size: 0.67rem;
       text-transform: uppercase;
       letter-spacing: 0.12em;
@@ -345,36 +443,36 @@ html_code = r"""
       display: flex;
       align-items: center;
       gap: 5px;
-    }
+    }}
 
-    .pill-mini {
+    .pill-mini {{
       padding: 2px 7px;
       border-radius: 999px;
       background: rgba(15, 23, 42, 0.92);
       border: 1px solid rgba(148, 163, 184, 0.5);
       font-size: 0.6rem;
       color: var(--muted);
-    }
+    }}
 
-    .place-name {
+    .place-name {{
       font-size: 0.86rem;
       font-weight: 550;
       color: var(--text);
       display: flex;
       align-items: center;
       gap: 6px;
-    }
+    }}
 
-    .place-meta {
+    .place-meta {{
       font-size: 0.68rem;
       color: rgba(148, 163, 184, 0.9);
       display: flex;
       align-items: center;
       gap: 8px;
       flex-wrap: wrap;
-    }
+    }}
 
-    .pill-verified {
+    .pill-verified {{
       display: inline-flex;
       align-items: center;
       gap: 4px;
@@ -384,29 +482,29 @@ html_code = r"""
       background: rgba(22, 163, 74, 0.1);
       font-size: 0.6rem;
       color: #bbf7d0;
-    }
+    }}
 
-    .pill-verified span.dot {
+    .pill-verified span.dot {{
       width: 6px;
       height: 6px;
       border-radius: 999px;
       background: #22c55e;
       box-shadow: 0 0 10px rgba(22, 163, 74, 0.9);
-    }
+    }}
 
-    .pill-link {
+    .pill-link {{
       font-size: 0.64rem;
       color: rgba(96, 165, 250, 0.95);
       display: inline-flex;
       align-items: center;
       gap: 4px;
-    }
+    }}
 
-    .pill-link span.icon {
+    .pill-link span.icon {{
       font-size: 0.8rem;
-    }
+    }}
 
-    .place-action {
+    .place-action {{
       display: flex;
       flex-direction: column;
       align-items: flex-end;
@@ -416,79 +514,79 @@ html_code = r"""
       color: var(--muted);
       text-align: right;
       min-width: 68px;
-    }
+    }}
 
-    .chip {
+    .chip {{
       padding: 2px 7px;
       border-radius: 999px;
       border: 1px solid rgba(148, 163, 184, 0.5);
       text-transform: uppercase;
       letter-spacing: 0.12em;
-    }
+    }}
 
-    .chip-go {
+    .chip-go {{
       border-color: rgba(34, 197, 94, 0.8);
       color: #bbf7d0;
       display: inline-flex;
       align-items: center;
       gap: 4px;
-    }
+    }}
 
-    .chip-go span.icon {
+    .chip-go span.icon {{
       font-size: 0.75rem;
-    }
+    }}
 
-    .secondary-text {
+    .secondary-text {{
       font-size: 0.62rem;
       color: rgba(148, 163, 184, 0.85);
-    }
+    }}
 
-    .action-row {
+    .action-row {{
       display: flex;
       align-items: center;
       gap: 8px;
       margin-top: 6px;
       font-size: 0.7rem;
       color: var(--muted);
-    }
+    }}
 
-    .chip-ghost {
+    .chip-ghost {{
       padding: 3px 8px;
       border-radius: 999px;
       border: 1px dashed rgba(148, 163, 184, 0.5);
-    }
+    }}
 
-    .chip-ghost strong {
+    .chip-ghost strong {{
       color: var(--text);
       font-weight: 500;
-    }
+    }}
 
-    .chip-soft {
+    .chip-soft {{
       padding: 3px 8px;
       border-radius: 999px;
       border: 1px solid rgba(59, 130, 246, 0.55);
       background: rgba(37, 99, 235, 0.12);
       color: rgba(191, 219, 254, 0.98);
-    }
+    }}
 
-    .status-text-small {
+    .status-text-small {{
       font-size: 0.66rem;
       color: rgba(148, 163, 184, 0.9);
-    }
+    }}
 
-    .status-text-small strong {
+    .status-text-small strong {{
       color: var(--accent);
-    }
+    }}
 
-    .mini-pill {
+    .mini-pill {{
       padding: 2px 6px;
       border-radius: 999px;
       border: 1px solid rgba(148, 163, 184, 0.35);
       font-size: 0.6rem;
       color: rgba(148, 163, 184, 0.9);
-    }
+    }}
 
-    .status-banner {
+    .status-banner {{
       padding: 8px 9px;
       border-radius: 14px;
       border: 1px solid rgba(148, 163, 184, 0.35);
@@ -498,19 +596,19 @@ html_code = r"""
       display: flex;
       flex-direction: column;
       gap: 5px;
-    }
+    }}
 
-    .status-banner strong {
+    .status-banner strong {{
       color: var(--text);
-    }
+    }}
 
-    .banner-header {
+    .banner-header {{
       display: flex;
       align-items: center;
       justify-content: space-between;
-    }
+    }}
 
-    .banner-chip {
+    .banner-chip {{
       padding: 2px 7px;
       border-radius: 999px;
       border: 1px solid rgba(148, 163, 184, 0.6);
@@ -518,95 +616,114 @@ html_code = r"""
       text-transform: uppercase;
       letter-spacing: 0.11em;
       color: rgba(191, 219, 254, 0.98);
-    }
+    }}
 
-    .banner-body {
+    .banner-body {{
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-    }
+    }}
 
-    .badge-inline {
+    .badge-inline {{
       display: inline-flex;
       align-items: center;
       gap: 6px;
-    }
+    }}
 
-    .badge-inline span.dot {
+    .badge-inline span.dot {{
       width: 7px;
       height: 7px;
       border-radius: 999px;
       background: #22c55e;
       box-shadow: 0 0 12px rgba(34, 197, 94, 0.9);
-    }
+    }}
 
-    #status {
+    #status {{
       font-size: 0.68rem;
       color: rgba(148, 163, 184, 0.97);
-    }
+    }}
 
-    #status strong {
+    #status strong {{
       color: var(--accent);
-    }
+    }}
 
-    #last-spoken {
+    #last-spoken {{
       font-size: 0.66rem;
       color: rgba(148, 163, 184, 0.9);
       margin-top: 4px;
-    }
+    }}
 
-    @media (max-width: 768px) {
-      body {
+    .loading {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+      color: rgba(148, 163, 184, 0.9);
+      font-size: 0.75rem;
+    }}
+
+    .pulse {{
+      animation: pulse 1.5s infinite;
+    }}
+
+    @keyframes pulse {{
+      0% {{ opacity: 1; }}
+      50% {{ opacity: 0.5; }}
+      100% {{ opacity: 1; }}
+    }}
+
+    @media (max-width: 768px) {{
+      body {{
         padding: 8px;
-      }
+      }}
 
-      .app-shell {
+      .app-shell {{
         border-radius: 18px;
         padding: 10px;
-      }
+      }}
 
-      header {
+      header {{
         flex-direction: column;
         align-items: flex-start;
         gap: 8px;
-      }
+      }}
 
-      .controls-row {
+      .controls-row {{
         padding-top: 0;
-      }
+      }}
 
-      .btn-primary {
+      .btn-primary {{
         margin-left: 0;
-      }
+      }}
 
-      .main {
+      .main {{
         grid-template-columns: minmax(0, 1fr);
-      }
+      }}
 
-      .card {
+      .card {{
         padding: 10px;
-      }
+      }}
 
-      .list {
+      .list {{
         max-height: 340px;
-      }
-    }
+      }}
+    }}
 
-    @media (max-width: 480px) {
-      .title-main {
+    @media (max-width: 480px) {{
+      .title-main {{
         font-size: 1rem;
-      }
+      }}
 
-      .title-sub {
+      .title-sub {{
         font-size: 0.68rem;
-      }
+      }}
 
-      .status-pill {
+      .status-pill {{
         width: 100%;
         justify-content: space-between;
-      }
-    }
+      }}
+    }}
   </style>
 </head>
 <body>
@@ -640,6 +757,9 @@ html_code = r"""
         <span>🔊 Test voice</span>
         <span>EN-IN</span>
       </button>
+      <button class="btn-secondary" id="share-btn">
+        <span>📤 Share</span>
+      </button>
     </section>
 
     <section class="main">
@@ -648,6 +768,9 @@ html_code = r"""
           <div>
             <strong>Campus map</strong>
             <span style="color: var(--muted);">• Tap a card to start navigation</span>
+          </div>
+          <div style="font-size: 0.7rem; color: var(--muted);">
+            Mode: <strong>{st.session_state.travel_mode}</strong>
           </div>
         </div>
 
@@ -658,6 +781,7 @@ html_code = r"""
             class="search-input"
             type="text"
             placeholder="Search: library, mechanical, hostel, canteen, ATM..."
+            aria-label="Search campus locations"
           />
         </div>
 
@@ -670,6 +794,9 @@ html_code = r"""
           <div>
             <strong>Live navigation</strong>
             <span style="color: var(--muted);">• Status & spoken instructions</span>
+          </div>
+          <div style="font-size: 0.7rem; color: var(--muted);">
+            Voice: <strong>{'ON' if st.session_state.voice_enabled else 'OFF'}</strong>
           </div>
         </div>
 
@@ -718,101 +845,101 @@ html_code = r"""
 
   <script>
     const places = [
-      {
+      {{
         categoryLabel: "🏛️ Main Campus & Admin",
         items: [
-          {
+          {{
             name: "LBS College of Engineering (Main Entrance)",
             category: "Main Campus & Admin",
             url: "https://maps.app.goo.gl/ZGm4R6fiM6KgbfH97"
-          },
-          {
+          }},
+          {{
             name: "Academic Departments (General Area)",
             category: "Main Campus & Admin",
             url: "https://maps.app.goo.gl/2PvfbFGAkUFjFBjS6"
-          },
-          {
+          }},
+          {{
             name: "Dept. Of Mechanical Engineering",
             category: "Main Campus & Admin",
             url: "https://maps.app.goo.gl/Yas8hpFy3kNim1xD8"
-          },
-          {
+          }},
+          {{
             name: "Computer Science & IT Department Building",
             category: "Main Campus & Admin",
             url: "https://maps.app.goo.gl/DbwYQ6b984VTGDjm6"
-          }
+          }}
         ]
-      },
-      {
+      }},
+      {{
         categoryLabel: "🔬 Academic Facilities",
         items: [
-          {
+          {{
             name: "Central Library",
             category: "Academic Facilities",
             url: "https://maps.app.goo.gl/fh6Z8TEsomfuoFbJ9"
-          },
-          {
+          }},
+          {{
             name: "Campus Fab Lab",
             category: "Academic Facilities",
             url: "https://maps.app.goo.gl/3rz8e5WXZ3UytSze7"
-          },
-          {
+          }},
+          {{
             name: "Computer Lab",
             category: "Academic Facilities",
             url: "https://maps.app.goo.gl/6pasZGBNrC3opwTg8"
-          },
-          {
+          }},
+          {{
             name: "Reprographic Centre",
             category: "Academic Facilities",
             url: "https://maps.app.goo.gl/FZ72xAAczEwk2mgi7"
-          }
+          }}
         ]
-      },
-      {
+      }},
+      {{
         categoryLabel: "⚽ Sports & Recreation",
         items: [
-          {
+          {{
             name: "Multipurpose Sports Area",
             category: "Sports & Recreation",
             url: "https://maps.app.goo.gl/uyPH83UZo3rjEFEBA"
-          },
-          {
+          }},
+          {{
             name: "LBS College Football Ground",
             category: "Sports & Recreation",
             url: "https://maps.app.goo.gl/vjLN3ZgN2yUoxuSr5"
-          }
+          }}
         ]
-      },
-      {
+      }},
+      {{
         categoryLabel: "🏠 Student Amenities",
         items: [
-          {
+          {{
             name: "Men's Hostel (Verified Block)",
             category: "Student Amenities",
             url: "https://maps.app.goo.gl/fQ1QAUmNk5MDepgTA"
-          },
-          {
+          }},
+          {{
             name: "Shahanas Hostel (Ladies Hostel)",
             category: "Student Amenities",
             url: "https://maps.app.goo.gl/nPwgvr3U3fXSiUj47"
-          },
-          {
+          }},
+          {{
             name: "College Canteen",
             category: "Student Amenities",
             url: "https://maps.app.goo.gl/UN4s7g16zSMiHhYz8"
-          },
-          {
+          }},
+          {{
             name: "College ATM (SBI ATM)",
             category: "Student Amenities",
             url: "https://maps.app.goo.gl/ug6jLStaQDjnVZ239"
-          },
-          {
+          }},
+          {{
             name: "Bus Garage / Transport Area",
             category: "Student Amenities",
             url: "https://maps.app.goo.gl/9WUemftWwmGohsRW8"
-          }
+          }}
         ]
-      }
+      }}
     ];
 
     const listEl = document.getElementById("places-list");
@@ -820,42 +947,51 @@ html_code = r"""
     const statusEl = document.getElementById("status");
     const lastSpokenEl = document.getElementById("last-spoken");
     const testVoiceBtn = document.getElementById("test-voice");
+    const shareBtn = document.getElementById("share-btn");
+    
+    // Streamlit communication
+    const Streamlit = window.Streamlit || {{}};
+    let voiceEnabled = {str(st.session_state.voice_enabled).lower()};
+    let travelMode = "{st.session_state.travel_mode}";
 
-    function buildList(filterText = "") {
+    function buildList(filterText = "") {{
       listEl.innerHTML = "";
       const query = filterText.trim().toLowerCase();
 
-      places.forEach(section => {
-        const filteredItems = section.items.filter(item => {
+      places.forEach(section => {{
+        const filteredItems = section.items.filter(item => {{
           if (!query) return true;
           return (
             item.name.toLowerCase().includes(query) ||
             item.category.toLowerCase().includes(query)
           );
-        });
+        }});
 
         if (!filteredItems.length) return;
 
         const sectionLabel = document.createElement("div");
         sectionLabel.className = "section-label";
-        sectionLabel.innerHTML = `<span class="dot"></span><span>${section.categoryLabel}</span>`;
+        sectionLabel.innerHTML = `<span class="dot"></span><span>${{section.categoryLabel}}</span>`;
         listEl.appendChild(sectionLabel);
 
-        filteredItems.forEach(item => {
+        filteredItems.forEach(item => {{
           const card = document.createElement("article");
           card.className = "place-card";
           card.dataset.url = item.url;
           card.dataset.name = item.name;
           card.dataset.category = item.category;
-
+          card.tabIndex = 0;
+          card.setAttribute('role', 'button');
+          card.setAttribute('aria-label', `Navigate to ${{item.name}}`);
+          
           card.innerHTML = `
             <div class="place-main">
               <div class="place-category">
-                <span>${item.category}</span>
+                <span>${{item.category}}</span>
                 <span class="pill-mini">Tap to navigate</span>
               </div>
               <div class="place-name">
-                <span>${item.name}</span>
+                <span>${{item.name}}</span>
               </div>
               <div class="place-meta">
                 <span class="pill-verified">
@@ -880,133 +1016,235 @@ html_code = r"""
           `;
 
           card.addEventListener("click", () => handlePlaceClick(item));
+          card.addEventListener("keypress", (e) => handleKeyPress(e, item));
           listEl.appendChild(card);
-        });
-      });
+        }});
+      }});
 
-      if (!listEl.innerHTML) {
+      if (!listEl.innerHTML) {{
         listEl.innerHTML =
           '<div style="padding: 10px; font-size: 0.74rem; color: rgba(148, 163, 184, 0.9);">No places match your search. Try another keyword.</div>';
-      }
-    }
+      }}
+    }}
 
     buildList();
 
-    searchInput.addEventListener("input", e => {
+    searchInput.addEventListener("input", e => {{
       buildList(e.target.value);
-    });
+    }});
 
-    function speak(text) {
-      if (!("speechSynthesis" in window)) {
+    // Voice synthesis with better error handling
+    let voicesLoaded = false;
+
+    function ensureVoicesLoaded() {{
+      return new Promise((resolve) => {{
+        if (window.speechSynthesis.getVoices().length > 0) {{
+          voicesLoaded = true;
+          resolve();
+        }} else {{
+          window.speechSynthesis.addEventListener('voiceschanged', () => {{
+            voicesLoaded = true;
+            resolve();
+          }}, {{ once: true }});
+        }}
+      }});
+    }}
+
+    function speak(text) {{
+      if (!voiceEnabled || !("speechSynthesis" in window)) {{
+        console.log("Voice disabled or not supported");
         return;
-      }
+      }}
+      
+      try {{
+        window.speechSynthesis.cancel();
+        
+        if (!voicesLoaded) {{
+          ensureVoicesLoaded().then(() => {{
+            createAndSpeak(text);
+          }});
+        }} else {{
+          createAndSpeak(text);
+        }}
+      }} catch (error) {{
+        console.error("Speech synthesis error:", error);
+        lastSpokenEl.textContent = "Voice not available";
+      }}
+    }}
 
-      window.speechSynthesis.cancel();
-
+    function createAndSpeak(text) {{
       const utterance = new SpeechSynthesisUtterance(text);
       const voices = window.speechSynthesis.getVoices();
-      const preferred = voices.find(v =>
-        v.lang.toLowerCase().startsWith("en-in")
-      );
+      const preferred = voices.find(v => v.lang.toLowerCase().startsWith("en-in"));
       utterance.voice = preferred || voices[0] || null;
       utterance.rate = 1.0;
       utterance.pitch = 1.0;
       utterance.volume = 1;
-
+      
+      utterance.onend = () => {{
+        console.log("Speech finished");
+      }};
+      
+      utterance.onerror = (event) => {{
+        console.error("Speech synthesis error:", event);
+        lastSpokenEl.textContent = "Voice error occurred";
+      }};
+      
       window.speechSynthesis.speak(utterance);
-    }
+    }}
 
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.getVoices();
-      };
-    }
+    // Initialize voices
+    if ("speechSynthesis" in window) {{
+      ensureVoicesLoaded();
+    }}
 
-    testVoiceBtn.addEventListener("click", () => {
+    testVoiceBtn.addEventListener("click", () => {{
       const text =
         "Voice navigation is ready. Tap any place card to open Google Maps from your current location.";
       speak(text);
-      lastSpokenEl.textContent = `Spoken: "${text}"`;
-    });
+      lastSpokenEl.textContent = `Spoken: "${{text}}"`;
+    }});
 
-    function handlePlaceClick(place) {
+    shareBtn.addEventListener("click", () => {{
+      if (navigator.share) {{
+        navigator.share({{
+          title: 'LBS Campus Navigator',
+          text: 'Check out the LBS Campus Navigator for directions and voice-guided navigation',
+          url: window.location.href
+        }});
+      }} else {{
+        navigator.clipboard.writeText(window.location.href);
+        statusEl.textContent = "Link copied to clipboard!";
+      }}
+    }});
+
+    function handleKeyPress(e, item) {{
+      if (e.key === 'Enter' || e.key === ' ') {{
+        e.preventDefault();
+        handlePlaceClick(item);
+      }}
+    }}
+
+    async function handlePlaceClick(place) {{
       const name = place.name;
       const url = place.url;
+      
+      // Store in navigation history via Streamlit
+      if (Streamlit.setComponentValue) {{
+        Streamlit.setComponentValue({{
+          type: 'navigation',
+          destination: name,
+          timestamp: new Date().toISOString(),
+          travelMode: travelMode
+        }});
+      }}
 
-      statusEl.innerHTML =
-        'Fetching your current location… Please keep GPS enabled and grant permission when asked.';
+      const originalStatus = statusEl.innerHTML;
+      statusEl.innerHTML = `
+        <div class="loading">
+          <div class="status-dot pulse"></div>
+          Fetching your current location… Please keep GPS enabled and grant permission when asked.
+        </div>
+      `;
 
-      if (!navigator.geolocation) {
+      if (!navigator.geolocation) {{
         statusEl.innerHTML =
           "Geolocation is not supported by this browser. You can still open the Google Maps link directly.";
         window.open(url, "_blank");
-        const fallbackText = `Opening Google Maps for ${name}.`;
+        const fallbackText = `Opening Google Maps for ${{name}}.`;
         speak(fallbackText);
-        lastSpokenEl.textContent = `Spoken: "${fallbackText}"`;
+        lastSpokenEl.textContent = `Spoken: "${{fallbackText}}"`;
         return;
-      }
+      }}
 
-      navigator.geolocation.getCurrentPosition(
-        position => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
+      try {{
+        const position = await new Promise((resolve, reject) => {{
+          navigator.geolocation.getCurrentPosition(resolve, reject, {{
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+          }});
+        }});
 
-          statusEl.innerHTML = `
-            Location acquired.<br />
-            From: <strong>${lat.toFixed(5)}, ${lng.toFixed(5)}</strong><br />
-            To: <strong>${name}</strong> (Google Maps link opened in a new tab).
-          `;
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
 
-          const directionsUrl = `https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(
-            name
-          )}&destination_place_id=&travelmode=driving`;
+        statusEl.innerHTML = `
+          Location acquired.<br />
+          From: <strong>${{lat.toFixed(5)}}, ${{lng.toFixed(5)}}</strong><br />
+          To: <strong>${{name}}</strong> (Google Maps link opened in a new tab).
+        `;
 
-          window.open(directionsUrl, "_blank");
+        const directionsUrl = `https://www.google.com/maps/dir/?api=1&origin=${{lat}},${{lng}}&destination=${{encodeURIComponent(
+          name
+        )}}&destination_place_id=&travelmode=${{travelMode}}`;
 
-          const spoken = `Starting navigation from your current location to ${name}. Your route is now open in Google Maps.`;
-          speak(spoken);
-          lastSpokenEl.textContent = `Spoken: "${spoken}"`;
-        },
-        error => {
-          let msg;
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              msg =
-                "Location permission was denied. Opening the Google Maps place link without your current position.";
-              break;
-            case error.POSITION_UNAVAILABLE:
-              msg =
-                "Location information is unavailable. Opening the Google Maps place link.";
-              break;
-            case error.TIMEOUT:
-              msg =
-                "Location request timed out. Opening the Google Maps place link.";
-              break;
-            default:
-              msg =
-                "An unknown error occurred while fetching your location. Opening the Google Maps place link.";
-          }
+        window.open(directionsUrl, "_blank");
 
-          statusEl.textContent = msg;
-          window.open(url, "_blank");
-          const spoken = `${msg}`;
-          speak(spoken);
-          lastSpokenEl.textContent = `Spoken: "${spoken}"`;
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 0
-        }
-      );
-    }
+        const spoken = `Starting navigation from your current location to ${{name}}. Your route is now open in Google Maps. Travel mode: ${{travelMode}}.`;
+        speak(spoken);
+        lastSpokenEl.textContent = `Spoken: "${{spoken}}"`;
+
+      }} catch (error) {{
+        let msg;
+        switch (error.code) {{
+          case error.PERMISSION_DENIED:
+            msg =
+              "Location permission was denied. Opening the Google Maps place link without your current position.";
+            break;
+          case error.POSITION_UNAVAILABLE:
+            msg =
+              "Location information is unavailable. Opening the Google Maps place link.";
+            break;
+          case error.TIMEOUT:
+            msg =
+              "Location request timed out. Opening the Google Maps place link.";
+            break;
+          default:
+            msg =
+              "An unknown error occurred while fetching your location. Opening the Google Maps place link.";
+        }}
+
+        statusEl.textContent = msg;
+        window.open(url, "_blank");
+        const spoken = `${{msg}}`;
+        speak(spoken);
+        lastSpokenEl.textContent = `Spoken: "${{spoken}}"`;
+      }}
+    }}
+
+    // Handle messages from Streamlit
+    if (Streamlit.on) {{
+      Streamlit.on('message', (event) => {{
+        if (event.data && event.data.type === 'updateSettings') {{
+          voiceEnabled = event.data.voiceEnabled;
+          travelMode = event.data.travelMode;
+        }}
+      }});
+    }}
   </script>
 </body>
 </html>
 """
 
+# Embed the HTML component
 components.html(
     html_code,
-    height=700,     # tweak based on your screen
+    height=750,
     scrolling=True,
 )
+
+# Handle navigation history from HTML component
+if components.html:
+    # This would be handled through component callbacks in a real implementation
+    pass
+
+# Footer with information
+st.divider()
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.caption("📍 Uses browser geolocation")
+with col2:
+    st.caption("🗣️ Voice synthesis via Web Speech API")
+with col3:
+    st.caption("🗺️ Powered by Google Maps")
